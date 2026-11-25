@@ -134,12 +134,12 @@ final class ImagesServiceTest extends TestCase
 
     public function testABadgeIsTrimmedAndItsSmallSizeKeepsTheStoredName(): void
     {
-        $this->images->storeAs('badge', 'river-club-0123456789abcdef.png', SyntheticImage::clearPng(1200, 1000, [100, 300, 1000, 400]));
+        $this->images->storeAs('badge', 'harbour-co-0123456789abcdef.png', SyntheticImage::clearPng(1200, 1000, [100, 300, 1000, 400]));
 
         $renditions = $this->storages->get(self::RENDITIONS);
-        self::assertSame([256, 102], SyntheticImage::size($renditions->read('badges/river-club-0123456789abcdef.png')));
-        self::assertSame([512, 205], SyntheticImage::size($renditions->read('badges/river-club-0123456789abcdef-512.png')));
-        self::assertSame('https://media.example.com/renditions/badges/river-club-0123456789abcdef.png', $this->images->url('badge', 'river-club-0123456789abcdef.png', 256));
+        self::assertSame([256, 102], SyntheticImage::size($renditions->read('badges/harbour-co-0123456789abcdef.png')));
+        self::assertSame([512, 205], SyntheticImage::size($renditions->read('badges/harbour-co-0123456789abcdef-512.png')));
+        self::assertSame('https://media.example.com/renditions/badges/harbour-co-0123456789abcdef.png', $this->images->url('badge', 'harbour-co-0123456789abcdef.png', 256));
     }
 
     public function testASanitisedSvgHasOneCleanCopyForEverySize(): void

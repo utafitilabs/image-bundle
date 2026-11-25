@@ -120,6 +120,27 @@ final class ConfigurationTest extends TestCase
         self::assertSame('async', $profile['generate']);
     }
 
+    public function testALaterConfigurationReplacesSizesAcceptAndFallbackAndMergesTheRest(): void
+    {
+        $first = ['storages' => self::STORAGES, 'profiles' => ['photo' => [
+            'accept' => ['image/jpeg', 'image/png'],
+            'sizes' => [320, 800],
+            'format' => 'webp',
+            'background' => '#FFFFFF',
+            'fallback' => ['size' => 800, 'format' => 'jpeg', 'interlace' => true],
+            'generate' => 'async',
+        ]]];
+
+        $merged = $this->processAll([$first, ['profiles' => ['photo' => ['generate' => 'sync']]]])['profiles']['photo'];
+        self::assertSame('sync', $merged['generate']);
+        self::assertSame([320, 800], array_keys((array) $merged['sizes']));
+
+        $replaced = $this->processAll([$first, ['profiles' => ['photo' => ['sizes' => [640], 'accept' => ['image/jpeg'], 'fallback' => ['size' => 640, 'format' => 'jpeg']]]]])['profiles']['photo'];
+        self::assertSame([640], array_keys((array) $replaced['sizes']));
+        self::assertSame(['image/jpeg'], $replaced['accept']);
+        self::assertSame(['size' => 640, 'format' => 'jpeg', 'quality' => null, 'interlace' => false], $replaced['fallback']);
+    }
+
     public function testAvifIsAcceptedInTheConfiguration(): void
     {
         $config = $this->process(['storages' => self::STORAGES, 'profiles' => ['thumb' => ['sizes' => [320], 'format' => 'avif', 'accept' => ['image/jpeg', 'image/avif']]]]);
@@ -198,13 +219,23 @@ final class ConfigurationTest extends TestCase
      */
     private function process(array $config): array
     {
+        return $this->processAll([$config]);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $configs
+     *
+     * @return array{driver: string, storages: array{originals: string, renditions: string}, profiles: array<string, array<string, mixed>>}
+     */
+    private function processAll(array $configs): array
+    {
         $extension = (new UtafitiLabsImageBundle())->getContainerExtension();
         self::assertInstanceOf(ConfigurationExtensionInterface::class, $extension);
         $configuration = $extension->getConfiguration([], new ContainerBuilder());
         self::assertInstanceOf(ConfigurationInterface::class, $configuration);
 
         /** @var array{driver: string, storages: array{originals: string, renditions: string}, profiles: array<string, array<string, mixed>>} $processed */
-        $processed = (new Processor())->processConfiguration($configuration, [$config]);
+        $processed = (new Processor())->processConfiguration($configuration, $configs);
 
         return $processed;
     }
