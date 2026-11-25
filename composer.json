@@ -1,0 +1,76 @@
+{
+    "name": "utafitilabs/image-bundle",
+    "description": "Image renditions for Symfony: named profiles turn one kept original into fixed renditions on Flysystem storages, made at once or through Messenger, on imagine/imagine.",
+    "type": "symfony-bundle",
+    "keywords": ["image", "renditions", "thumbnails", "srcset", "imagine", "gd", "imagick", "flysystem", "messenger", "symfony"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Ezekiel Mjema",
+            "homepage": "https://github.com/eemjema"
+        }
+    ],
+    "require": {
+        "php": ">=8.4",
+        "ext-dom": "*",
+        "ext-exif": "*",
+        "ext-fileinfo": "*",
+        "ext-libxml": "*",
+        "imagine/imagine": "^1.5",
+        "league/flysystem": "^3.10",
+        "psr/container": "^2.0",
+        "psr/event-dispatcher": "^1.0",
+        "symfony/config": "^7.3 || ^8.0",
+        "symfony/console": "^7.3 || ^8.0",
+        "symfony/dependency-injection": "^7.3 || ^8.0",
+        "symfony/framework-bundle": "^7.3 || ^8.0",
+        "symfony/http-foundation": "^7.3 || ^8.0",
+        "symfony/http-kernel": "^7.3 || ^8.0",
+        "symfony/messenger": "^7.3 || ^8.0"
+    },
+    "suggest": {
+        "ext-gd": "The gd driver (the default).",
+        "ext-imagick": "The imagick driver.",
+        "twig/twig": "The image_url, image_srcset and image_fallback functions."
+    },
+    "autoload": {
+        "psr-4": {
+            "UtafitiLabs\\ImageBundle\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "UtafitiLabs\\ImageBundle\\Tests\\": "tests/"
+        }
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.95",
+        "league/flysystem-bundle": "^3.4",
+        "league/flysystem-memory": "^3.10",
+        "phpstan/phpstan": "^2.2",
+        "phpunit/phpunit": "^13.2",
+        "symfony/twig-bundle": "^7.3 || ^8.0",
+        "twig/twig": "^3.21"
+    },
+    "scripts": {
+        "cs:fix": "php-cs-fixer fix",
+        "cs:check": "php-cs-fixer fix --dry-run --diff --using-cache=no",
+        "phpstan": "phpstan analyse --no-progress --memory-limit=1G",
+        "test": "phpunit",
+        "check": [
+            "@cs:check",
+            "@phpstan",
+            "@test"
+        ]
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.1-dev"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
