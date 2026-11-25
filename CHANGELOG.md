@@ -4,9 +4,9 @@ All notable changes to `utafitilabs/image-bundle` are documented here.
 
 ## Contents
 
-- [v0.1.0 — unreleased](#v010--unreleased)
+- [v0.1.0 — 2026-11-25](#v010--2026-11-25)
 
-## v0.1.0 — unreleased
+## v0.1.0 — 2026-11-25
 
 ### Added
 
