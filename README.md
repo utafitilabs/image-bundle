@@ -166,7 +166,7 @@ the command, events, and memory.
 - PHP **8.4+** with **exif**, **fileinfo** and **dom**, and **gd** or **imagick**
 - Symfony **7.3+ / 8**
 - [imagine/imagine](https://github.com/php-imagine/Imagine) **1.5+** and
-  [league/flysystem](https://flysystem.thephpleague.com/) **3.10+** (installed with the bundle)
+  [league/flysystem](https://flysystem.thephpleague.com/) **3.25.1+** (installed with the bundle)
 - AVIF needs a GD or ImageMagick built with it (`gd_info()['AVIF Support']`,
   `Imagick::queryFormats('AVIF')`)
 

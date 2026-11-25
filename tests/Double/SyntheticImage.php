@@ -134,6 +134,10 @@ final class SyntheticImage
     /**
      * The colour and GD alpha (0 opaque, 127 clear) of one pixel of encoded bytes.
      *
+     * A PNG may declare its transparency as one transparent grey or colour in a tRNS chunk instead of an alpha
+     * channel (https://www.w3.org/TR/png/#11tRNS); GD reads that as the image's transparent colour
+     * (imagecolortransparent()) and leaves the pixel's own alpha at 0, so a pixel of that colour is reported as 127.
+     *
      * @return array{int, int, int, int}
      */
     public static function pixel(string $bytes, int $x, int $y): array
@@ -146,13 +150,14 @@ final class SyntheticImage
         if (false === $colour) {
             throw new \RuntimeException('No such pixel.');
         }
+        $transparent = imagecolortransparent($image);
         if (!imageistruecolor($image)) {
             $index = imagecolorsforindex($image, $colour);
 
-            return [$index['red'], $index['green'], $index['blue'], $index['alpha']];
+            return [$index['red'], $index['green'], $index['blue'], $colour === $transparent ? 127 : $index['alpha']];
         }
 
-        return [$colour >> 16 & 0xFF, $colour >> 8 & 0xFF, $colour & 0xFF, $colour >> 24 & 0x7F];
+        return [$colour >> 16 & 0xFF, $colour >> 8 & 0xFF, $colour & 0xFF, $colour === $transparent ? 127 : $colour >> 24 & 0x7F];
     }
 
     /**
