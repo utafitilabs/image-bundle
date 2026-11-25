@@ -13,12 +13,34 @@ declare(strict_types=1);
 
 namespace UtafitiLabs\ImageBundle;
 
+use Imagine\Gd\DriverInfo as GdDriverInfo;
+use Imagine\Gd\Imagine as GdImagine;
+use Imagine\Image\Metadata\ExifMetadataReader;
+use Imagine\Imagick\DriverInfo as ImagickDriverInfo;
+use Imagine\Imagick\Imagine as ImagickImagine;
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\NodeBuilder;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
+use Twig\Environment;
+use UtafitiLabs\ImageBundle\Command\RenditionsCommand;
+use UtafitiLabs\ImageBundle\Engine\ClearPixelScanner;
+use UtafitiLabs\ImageBundle\Engine\ExifReader;
+use UtafitiLabs\ImageBundle\Engine\RenditionEngine;
+use UtafitiLabs\ImageBundle\Engine\SvgCleaner;
+use UtafitiLabs\ImageBundle\Message\MakeRenditions;
+use UtafitiLabs\ImageBundle\MessageHandler\MakeRenditionsHandler;
+use UtafitiLabs\ImageBundle\Service\ImageCheckerService;
+use UtafitiLabs\ImageBundle\Service\ImagesInterface;
+use UtafitiLabs\ImageBundle\Service\ImagesService;
+use UtafitiLabs\ImageBundle\Service\ProfileRegistryService;
+use UtafitiLabs\ImageBundle\Twig\ImageExtension;
+
+use function Symfony\Component\DependencyInjection\Loader\Configurator\param;
+use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
+use function Symfony\Component\DependencyInjection\Loader\Configurator\tagged_locator;
 
 /**
  * Image renditions: named profiles turn one kept original into fixed renditions on two Flysystem storages.
@@ -30,6 +52,17 @@ use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
  * (https://symfony.com/doc/current/components/config/definition.html#array-node-options). The checks that span several
  * keys of a profile run in one validate() closure on the profiles node, which runs after every profile's own keys are
  * finalised (vendor/symfony/config/Definition/BaseNode.php, finalize()).
+ *
+ * Services are explicit, prefixed with the alias, and hidden with a leading dot when an application has no use for
+ * them, with class aliases for the ones it type-hints, per https://symfony.com/doc/current/bundles/best_practices.html
+ * #services. Tags are written by hand: console.command (the command's #[AsCommand] keeps it lazy, as
+ * vendor/symfony/framework-bundle/Resources/config/console.php registers core's), messenger.message_handler with the
+ * message it handles (as vendor/symfony/framework-bundle/Resources/config/notifier.php tags its handlers) and
+ * twig.extension. The message bus and the event dispatcher are optional references, as FrameworkExtension wires the
+ * mailer's bus (new Reference('messenger.default_bus', NULL_ON_INVALID_REFERENCE)). The Twig extension is registered
+ * only when Twig is installed, with ContainerBuilder::willBeAvailable() as FrameworkExtension does for optional
+ * packages. The application's name services are a tagged locator indexed by their "profile" attribute
+ * (https://symfony.com/doc/current/service_container/service_subscribers_locators.html#tagged-services-locator).
  */
 final class UtafitiLabsImageBundle extends AbstractBundle
 {
@@ -86,6 +119,83 @@ final class UtafitiLabsImageBundle extends AbstractBundle
             $profiles[$name] = $profile;
         }
         $container->parameters()->set('utafitilabs_image.profiles', $profiles);
+
+        $gd = 'gd' === $config['driver'];
+        $storages = [];
+        foreach ($profiles as $profile) {
+            foreach (['originals', 'renditions'] as $key) {
+                $id = $profile[$key];
+                if (\is_string($id)) {
+                    $storages[$id] = service($id);
+                }
+            }
+        }
+
+        $services = $container->services();
+        $services->set('.utafitilabs_image.metadata_reader', ExifMetadataReader::class);
+        $services->set('.utafitilabs_image.imagine', $gd ? GdImagine::class : ImagickImagine::class)
+            ->call('setMetadataReader', [service('.utafitilabs_image.metadata_reader')]);
+        $services->set('.utafitilabs_image.driver_info', $gd ? GdDriverInfo::class : ImagickDriverInfo::class)
+            ->factory([$gd ? GdDriverInfo::class : ImagickDriverInfo::class, 'get']);
+        $services->set('.utafitilabs_image.profiles', ProfileRegistryService::class)
+            ->args([param('utafitilabs_image.profiles')]);
+        $services->set('.utafitilabs_image.storages')
+            ->args([$storages])
+            ->tag('container.service_locator');
+        $services->set('.utafitilabs_image.trimmer', ClearPixelScanner::class);
+        $services->set('.utafitilabs_image.svg_cleaner', SvgCleaner::class);
+        $services->set('.utafitilabs_image.exif_reader', ExifReader::class)
+            ->args([service('.utafitilabs_image.metadata_reader')]);
+        $services->set('.utafitilabs_image.engine', RenditionEngine::class)
+            ->args([
+                service('.utafitilabs_image.imagine'),
+                service('.utafitilabs_image.trimmer'),
+                service('.utafitilabs_image.driver_info'),
+                $config['driver'],
+            ]);
+
+        $services->set('utafitilabs_image.checker', ImageCheckerService::class)
+            ->public()
+            ->args([
+                service('.utafitilabs_image.profiles'),
+                service('.utafitilabs_image.imagine'),
+                service('.utafitilabs_image.trimmer'),
+                service('.utafitilabs_image.svg_cleaner'),
+            ]);
+        $services->alias(ImageCheckerService::class, 'utafitilabs_image.checker');
+
+        $services->set('utafitilabs_image.images', ImagesService::class)
+            ->public()
+            ->args([
+                service('.utafitilabs_image.profiles'),
+                service('.utafitilabs_image.storages'),
+                service('.utafitilabs_image.engine'),
+                service('utafitilabs_image.checker'),
+                service('.utafitilabs_image.svg_cleaner'),
+                service('.utafitilabs_image.exif_reader'),
+                service('messenger.default_bus')->nullOnInvalid(),
+                service('event_dispatcher')->nullOnInvalid(),
+            ]);
+        $services->alias(ImagesInterface::class, 'utafitilabs_image.images');
+
+        $services->set('utafitilabs_image.message_handler.make_renditions', MakeRenditionsHandler::class)
+            ->args([service('utafitilabs_image.images')])
+            ->tag('messenger.message_handler', ['handles' => MakeRenditions::class]);
+
+        $services->set('utafitilabs_image.command.renditions', RenditionsCommand::class)
+            ->args([
+                service('utafitilabs_image.images'),
+                service('.utafitilabs_image.profiles'),
+                tagged_locator('utafitilabs_image.names', 'profile'),
+                service('.utafitilabs_image.storages'),
+            ])
+            ->tag('console.command');
+
+        if (ContainerBuilder::willBeAvailable('twig/twig', Environment::class, ['symfony/twig-bundle'])) {
+            $services->set('utafitilabs_image.twig_extension', ImageExtension::class)
+                ->args([service('utafitilabs_image.images')])
+                ->tag('twig.extension');
+        }
     }
 
     private function profile(NodeBuilder $profile): void

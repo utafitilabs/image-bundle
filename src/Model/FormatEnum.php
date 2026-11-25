@@ -37,6 +37,18 @@ enum FormatEnum: string
         };
     }
 
+    /** The format of a stored name's extension; a GIF becomes a PNG, an SVG and anything else is null. */
+    public static function fromExtension(string $extension): ?self
+    {
+        return match (strtolower($extension)) {
+            'jpg', 'jpeg' => self::Jpeg,
+            'png', 'gif' => self::Png,
+            'webp' => self::Webp,
+            'avif' => self::Avif,
+            default => null,
+        };
+    }
+
     public function extension(): string
     {
         return self::Jpeg === $this ? 'jpg' : $this->value;
